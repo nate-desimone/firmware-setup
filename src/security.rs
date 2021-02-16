@@ -79,6 +79,13 @@ fn confirm(display: &mut Display) -> Result<()> {
         ui.font.render("Cancel", font_size),
     ];
 
+    let mut max_input = String::new();
+    while max_input.len() < code.len() {
+        // 0 is the widest number with Fira Sans
+        max_input.push('0');
+    }
+    let max_input_text = ui.font.render(&max_input, font_size);
+
     let mut input = String::new();
     loop {
         let x = font_size as i32;
@@ -93,7 +100,7 @@ fn confirm(display: &mut Display) -> Result<()> {
         y += margin_tb;
 
         let input_text = ui.font.render(&input, font_size);
-        ui.draw_pretty_box(display, x, y, code.len() as u32 * font_size as u32 / 2, font_size as u32, false);
+        ui.draw_pretty_box(display, x, y, max_input_text.width(), font_size as u32, false);
         input_text.draw(display, x, y, ui.text_color);
         if input.len() < code.len() {
             display.rect(
