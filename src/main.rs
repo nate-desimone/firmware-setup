@@ -32,19 +32,19 @@ use uefi::status::Status;
 #[macro_use]
 mod debug;
 
+// Public to ignore unused functions
+pub mod image;
+pub mod serial;
+
 mod coreboot;
 mod display;
-mod hii;
-pub mod image;
-mod key;
-mod rng;
-mod serial;
-mod security;
-
 //mod dump_hii;
 mod fde;
-
-pub static FONT_TTF: &'static [u8] = include_bytes!("../res/FiraSans-Regular.ttf");
+mod hii;
+mod key;
+mod rng;
+mod security;
+mod ui;
 
 #[no_mangle]
 pub extern "C" fn main() -> Status {
