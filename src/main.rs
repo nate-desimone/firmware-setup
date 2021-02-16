@@ -44,6 +44,8 @@ pub mod text;
 //mod dump_hii;
 mod fde;
 
+pub static FONT_TTF: &'static [u8] = include_bytes!("../res/FiraSans-Regular.ttf");
+
 #[no_mangle]
 pub extern "C" fn main() -> Status {
     let uefi = std::system_table();

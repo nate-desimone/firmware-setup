@@ -15,6 +15,7 @@ use uefi::hii::ifr::{
 use uefi::status::{Error, Result, Status};
 use uefi::text::TextInputKey;
 
+use crate::FONT_TTF;
 use crate::display::{Display, Output};
 use crate::image::{self, Image};
 use crate::key::{raw_key, Key};
@@ -313,7 +314,6 @@ pub struct Fde {
 }
 
 
-static FONT_TTF: &'static [u8] = include_bytes!("../res/FiraSans-Regular.ttf");
 static CHECKBOX_CHECKED_BMP: &'static [u8] = include_bytes!("../res/checkbox_checked.bmp");
 static CHECKBOX_UNCHECKED_BMP: &'static [u8] = include_bytes!("../res/checkbox_unchecked.bmp");
 
