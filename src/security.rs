@@ -1,16 +1,49 @@
+use ectool::{AccessLpcDirect, Ec, SecurityState, Timeout};
 use orbclient::{Color, Renderer};
-use std::proto::Protocol;
+use std::{
+    cell::Cell,
+    proto::Protocol,
+    ptr,
+};
 use uefi::{
     Event,
     Tpl,
     guid::Guid,
-    status::{Error, Result},
+    reset::ResetType,
+    status::{Error, Result, Status},
 };
 
 use crate::display::{Display, Output};
 use crate::key::{key, Key};
 use crate::rng::Rng;
 use crate::ui::Ui;
+
+pub struct UefiTimeout {
+    duration: u64,
+    elapsed: Cell<u64>,
+}
+
+impl UefiTimeout {
+    pub fn new(duration: u64) -> Self {
+        Self {
+            duration,
+            elapsed: Cell::new(0),
+        }
+    }
+}
+
+impl Timeout for UefiTimeout {
+    fn reset(&mut self) {
+        self.elapsed.set(0);
+    }
+
+    fn running(&self) -> bool {
+        let elapsed = self.elapsed.get() + 1;
+        let _ = (std::system_table().BootServices.Stall)(1);
+        self.elapsed.set(elapsed);
+        elapsed < self.duration
+    }
+}
 
 #[cfg(target_arch = "x86_64")]
 unsafe fn wait_for_interrupt() {
@@ -22,7 +55,7 @@ unsafe fn wait_for_interrupt() {
     );
 }
 
-fn confirm(display: &mut Display) -> Result<()> {
+fn confirm(display: &mut Display, security_state: SecurityState) -> Result<()> {
     let (_display_w, display_h) = (display.width(), display.height());
 
     let scale = if display_h > 1440 {
@@ -61,6 +94,9 @@ fn confirm(display: &mut Display) -> Result<()> {
     ] {
         texts.push(ui.font.render(message, font_size));
     }
+
+    //TODO: remove debugging
+    texts.push(ui.font.render(&format!("{:?}", security_state), font_size));
 
     let mut code_bytes = [0; 4];
     rng.read(&mut code_bytes)?;
@@ -180,13 +216,45 @@ fn confirm(display: &mut Display) -> Result<()> {
 }
 
 extern "win64" fn callback(_event: Event, _context: usize) {
-    //TODO: check if firmware unlocked
+    let access = match unsafe { AccessLpcDirect::new(UefiTimeout::new(100_000)) } {
+        Ok(ok) => ok,
+        Err(err) => {
+            debugln!("failed to access EC: {:?}", err);
+            return;
+        },
+    };
+
+    let mut ec = match unsafe { Ec::new(access) } {
+        Ok(ok) => ok,
+        Err(err) => {
+            debugln!("failed to probe EC: {:?}", err);
+            return;
+        },
+    };
+
+    let security_state = match unsafe { ec.security_get() } {
+        Ok(ok) => ok,
+        Err(err) => {
+            debugln!("failed to get EC security state: {:?}", err);
+            return;
+        }
+    };
+
+    debugln!("security state: {:?}", security_state);
+    match security_state {
+        // Already locked, so do not confirm
+        SecurityState::Lock => {
+            return;
+        },
+        // Not locked, require confirmation
+        _ => (),
+    }
 
     let res = match Output::one() {
         Ok(output) => {
             let mut display = Display::new(output);
 
-            let res = confirm(&mut display);
+            let res = confirm(&mut display, security_state);
 
             // Clear display
             display.set(Color::rgb(0, 0, 0));
@@ -206,7 +274,22 @@ extern "win64" fn callback(_event: Event, _context: usize) {
         },
         Err(err) => {
             debugln!("failed to confirm: {:?}", err);
-            //TODO: lock and reboot
+
+            // Lock on next reboot
+            match unsafe { ec.security_set(SecurityState::PrepareLock) } {
+                Ok(()) => (),
+                Err(err) => {
+                    debugln!("failed to prepare to lock EC security state: {:?}", err)
+                }
+            }
+
+            // Reboot
+            (std::system_table().RuntimeServices.ResetSystem)(
+                ResetType::Cold,
+                Status(0),
+                0,
+                ptr::null()
+            );
         }
     }
 }

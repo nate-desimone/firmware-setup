@@ -24,6 +24,7 @@ rlibc = "1.0.0"
 git = "https://github.com/system76/ec.git"
 branch = "security"
 default-features = false
+features = ["redox_hwio"]
 
 [features]
 default = []
