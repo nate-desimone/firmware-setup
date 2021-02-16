@@ -34,6 +34,8 @@ fn confirm(display: &mut Display) -> Result<()> {
     };
 
     // Style {
+    let margin_tb = 4 * scale;
+
     let font_size = (16 * scale) as f32;
     // } Style
 
@@ -86,11 +88,12 @@ fn confirm(display: &mut Display) -> Result<()> {
 
         for text in texts.iter() {
             text.draw(display, x, y, ui.text_color);
-            y += text.height() as i32;
+            y += font_size as i32;
         }
+        y += margin_tb;
 
         let input_text = ui.font.render(&input, font_size);
-        ui.draw_pretty_box(display, x, y, 8 * font_size as u32 / 2, font_size as u32, false);
+        ui.draw_pretty_box(display, x, y, code.len() as u32 * font_size as u32 / 2, font_size as u32, false);
         input_text.draw(display, x, y, ui.text_color);
         if input.len() < code.len() {
             display.rect(
@@ -101,11 +104,14 @@ fn confirm(display: &mut Display) -> Result<()> {
                 ui.text_color
             );
         }
-        y += font_size as i32 + 8;
+        y += font_size as i32 + margin_tb;
+
+        // Blank space
+        y += font_size as i32;
 
         for (i, button_text) in buttons.iter().enumerate() {
             ui.draw_text_box(display, x, y, button_text, i == button_i, i == button_i);
-            y += button_text.height() as i32 + 8;
+            y += font_size as i32 + margin_tb;
         }
 
         display.sync();
