@@ -86,6 +86,10 @@ fn confirm(display: &mut Display, security_state: SecurityState) -> Result<()> {
     let _ = key(false);
 
     let mut texts = Vec::new();
+
+    //TODO: remove debugging
+    texts.push(ui.font.render(&format!("Security State: {:?}", security_state), font_size));
+
     for message in &[
         "Type in the following code to commence firmware flashing.",
         "The random code is a security measure to ensure you have",
@@ -94,9 +98,6 @@ fn confirm(display: &mut Display, security_state: SecurityState) -> Result<()> {
     ] {
         texts.push(ui.font.render(message, font_size));
     }
-
-    //TODO: remove debugging
-    texts.push(ui.font.render(&format!("{:?}", security_state), font_size));
 
     let mut code_bytes = [0; 4];
     rng.read(&mut code_bytes)?;
