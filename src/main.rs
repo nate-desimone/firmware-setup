@@ -38,6 +38,7 @@ mod hii;
 pub mod image;
 mod key;
 pub mod null;
+mod rng;
 mod serial;
 pub mod text;
 
