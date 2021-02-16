@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(asm)]
 #![feature(llvm_asm)]
 #![feature(const_fn)]
 #![feature(core_intrinsics)]
@@ -40,6 +41,7 @@ mod key;
 pub mod null;
 mod rng;
 mod serial;
+mod security;
 pub mod text;
 
 //mod dump_hii;
@@ -57,6 +59,11 @@ pub extern "C" fn main() -> Status {
 
     if let Err(err) = fde::Fde::install() {
         println!("Fde error: {:?}", err);
+        let _ = key::key(true);
+    }
+
+    if let Err(err) = security::install() {
+        debugln!("security error: {:?}", err);
         let _ = key::key(true);
     }
 
