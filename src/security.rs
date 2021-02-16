@@ -190,25 +190,31 @@ fn confirm(display: &mut Display, security_state: SecurityState) -> Result<()> {
                     _ => (),
                 }
             },
-            Key::Up => {
-                if button_i > 0 {
-                    button_i -= 1;
+            Key::Enter => {
+                if button_i == 0 {
+                    if input == code {
+                        // Continue if code entered
+                        return Ok(());
+                    } else {
+                        // Clear invalid input
+                        input.clear();
+                    }
+                } else {
+                    // Return error if cancel selected
+                    return Err(Error::Aborted);
                 }
+            },
+            Key::Escape => {
+                input.clear();
             },
             Key::Down => {
                 if button_i + 1 < buttons.len() {
                     button_i += 1;
                 }
             },
-            Key::Enter => {
-                if button_i == 0 {
-                    if input == code {
-                        // Continue if code entered
-                        return Ok(());
-                    }
-                } else {
-                    // Return error if cancel selected
-                    return Err(Error::Aborted);
+            Key::Up => {
+                if button_i > 0 {
+                    button_i -= 1;
                 }
             },
             _ => {},
