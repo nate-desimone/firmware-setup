@@ -7,8 +7,8 @@ use std::{
     ptr,
 };
 use uefi::{
-    Event,
-    Tpl,
+    Handle,
+    boot::InterfaceType,
     guid::Guid,
     reset::ResetType,
     status::{Error, Result, Status},
@@ -44,16 +44,6 @@ impl Timeout for UefiTimeout {
         self.elapsed.set(elapsed);
         elapsed < self.duration
     }
-}
-
-#[cfg(target_arch = "x86_64")]
-unsafe fn wait_for_interrupt() {
-    asm!(
-        "pushf",
-        "sti",
-        "hlt",
-        "popf"
-    );
 }
 
 fn confirm(display: &mut Display) -> Result<()> {
@@ -211,21 +201,7 @@ fn confirm(display: &mut Display) -> Result<()> {
 
         display.sync();
 
-        // Since this runs in TPL_CALLBACK, we cannot wait for keys and must spin
-        let k = loop {
-            match key(false) {
-                Ok(ok) => break ok,
-                Err(err) => match err {
-                    Error::NotReady => {
-                        unsafe { wait_for_interrupt(); }
-                    },
-                    _ => {
-                        debugln!("failed to read key: {:?}", err);
-                        return Err(err);
-                    }
-                }
-            }
-        };
+        let k = key(true)?;
         debugln!("key: {:?}", k);
         match k {
             Key::Backspace => {
@@ -273,12 +249,12 @@ fn confirm(display: &mut Display) -> Result<()> {
     }
 }
 
-extern "win64" fn callback(_event: Event, _context: usize) {
+extern "win64" fn run() -> bool {
     let access = match unsafe { AccessLpcDirect::new(UefiTimeout::new(100_000)) } {
         Ok(ok) => ok,
         Err(err) => {
             debugln!("failed to access EC: {:?}", err);
-            return;
+            return false;
         },
     };
 
@@ -286,7 +262,7 @@ extern "win64" fn callback(_event: Event, _context: usize) {
         Ok(ok) => ok,
         Err(err) => {
             debugln!("failed to probe EC: {:?}", err);
-            return;
+            return false;
         },
     };
 
@@ -294,7 +270,7 @@ extern "win64" fn callback(_event: Event, _context: usize) {
         Ok(ok) => ok,
         Err(err) => {
             debugln!("failed to get EC security state: {:?}", err);
-            return;
+            return false;
         }
     };
 
@@ -302,7 +278,7 @@ extern "win64" fn callback(_event: Event, _context: usize) {
     match security_state {
         // Already locked, so do not confirm
         SecurityState::Lock => {
-            return;
+            return false;
         },
         // Not locked, require confirmation
         _ => (),
@@ -350,26 +326,31 @@ extern "win64" fn callback(_event: Event, _context: usize) {
             );
         }
     }
+
+    true
 }
 
-const SYSTEM76_SECURITY_EVENT_GROUP: Guid = Guid(0x764247c4, 0xa859, 0x4a6b, [0xb5, 0x00, 0xed, 0x5d, 0x7a, 0x70, 0x7d, 0xd4]);
-const EVT_NOTIFY_SIGNAL: u32 = 0x00000200;
-const TPL_CALLBACK: Tpl = Tpl(8);
+pub const SYSTEM76_SECURITY_PROTOCOL_GUID: Guid = Guid(0x764247c4, 0xa859, 0x4a6b, [0xb5, 0x00, 0xed, 0x5d, 0x7a, 0x70, 0x7d, 0xd4]);
+pub struct System76SecurityProtocol {
+    pub Run: extern "win64" fn() -> bool,
+}
 
 pub fn install() -> Result<()> {
     let uefi = std::system_table();
 
-    let mut event = Event(0);
-    (uefi.BootServices.CreateEventEx)(
-        EVT_NOTIFY_SIGNAL,
-        TPL_CALLBACK,
-        callback,
-        0,
-        &SYSTEM76_SECURITY_EVENT_GROUP,
-        &mut event
-    )?;
+    //let uefi = unsafe { std::system_table_mut() };
 
-    debugln!("end of dxe event: {:X?}", event);
+    let protocol = Box::new(System76SecurityProtocol {
+        Run: run,
+    });
+    let protocol_ptr = Box::into_raw(protocol);
+    let mut handle = Handle(0);
+    (uefi.BootServices.InstallProtocolInterface)(
+        &mut handle,
+        &SYSTEM76_SECURITY_PROTOCOL_GUID,
+        InterfaceType::Native,
+        protocol_ptr as usize
+    )?;
 
     Ok(())
 }
