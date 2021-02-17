@@ -282,7 +282,7 @@ extern "win64" fn callback(_event: Event, _context: usize) {
         Err(err) => {
             debugln!("failed to confirm: {:?}", err);
 
-            // Lock on next reboot
+            // Lock on next shutdown, will power on automatically
             match unsafe { ec.security_set(SecurityState::PrepareLock) } {
                 Ok(()) => (),
                 Err(err) => {
@@ -290,9 +290,9 @@ extern "win64" fn callback(_event: Event, _context: usize) {
                 }
             }
 
-            // Reboot
+            // Shutdown
             (std::system_table().RuntimeServices.ResetSystem)(
-                ResetType::Cold,
+                ResetType::Shutdown,
                 Status(0),
                 0,
                 ptr::null()
