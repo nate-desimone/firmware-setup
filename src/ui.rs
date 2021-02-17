@@ -87,6 +87,46 @@ impl Ui {
         })
     }
 
+    //TODO: move to orbfont and optimize
+    pub fn render_text_wrapped(&self, string: &str, font_size: f32, width: u32) -> Vec<Text> {
+        let mut texts = Vec::new();
+
+        //TODO: support different whitespace differently, like newline?
+        let words: Vec<&str> = string.split_whitespace().collect();
+
+        let mut line = String::new();
+        let mut last_text_opt = None;
+        let mut i = 0;
+        while i < words.len() {
+            if ! line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(words[i]);
+
+            let text = self.font.render(&line, font_size);
+            if text.width() > width {
+                line.clear();
+                if let Some(last_text) = last_text_opt.take() {
+                    texts.push(last_text);
+                    // Process this word again
+                    continue;
+                } else {
+                    texts.push(text);
+                }
+            } else {
+                last_text_opt = Some(text);
+            }
+
+            i += 1;
+        }
+
+        if let Some(last_text) = last_text_opt.take() {
+            texts.push(last_text);
+        }
+
+        texts
+    }
+
     pub fn draw_pretty_box(&self, display: &mut Display, x: i32, y: i32, w: u32, h: u32, highlighted: bool) {
         let (_display_w, display_h) = (display.width(), display.height());
 
